@@ -37,6 +37,11 @@ const Chat = ({ chatUser, onBack }) => {
   // Presence state
   const [isOtherInChat, setIsOtherInChat] = useState(false);
   
+  // Dropdown options, shredder, and mute states
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [showShredderConfirm, setShowShredderConfirm] = useState(false);
+  
   const endOfMessagesRef = useRef(null);
   const longPressTimerRef = useRef(null);
   const pickerRef = useRef(null);
@@ -195,6 +200,75 @@ const Chat = ({ chatUser, onBack }) => {
       }
       setShowEmojiPicker(false);
     } catch (error) { console.error("Send Error:", error); }
+  };
+
+  const exportSecureIntelligence = () => {
+    try {
+      if (!messages || messages.length === 0) {
+        alert("No communication transcript to export.");
+        return;
+      }
+      
+      let docText = `==================================================\n`;
+      docText += `          VELORA SECURE INTEL REPORT\n`;
+      docText += `==================================================\n`;
+      docText += `Dossier Contact: ${chatUser.displayName} (@${chatUser.username || 'user'})\n`;
+      docText += `Export Time: ${new Date().toLocaleString()}\n`;
+      docText += `Encryption Layer: End-to-End Cryptographic AES-GCM Tunnel\n`;
+      docText += `==================================================\n\n`;
+
+      messages.forEach(msg => {
+        const time = new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const senderLabel = msg.sender === currentUserId ? "YOU" : chatUser.displayName.toUpperCase();
+        let contentStr = "";
+        
+        if (msg.content && typeof msg.content === 'object' && msg.content.type === 'media') {
+          contentStr = `[SECURE MEDIA TRANSMISSION: ${msg.content.mediaUrl}]`;
+        } else {
+          contentStr = msg.content || "";
+        }
+        
+        docText += `[${time}] ${senderLabel}: ${contentStr}\n`;
+      });
+
+      docText += `\n==================================================\n`;
+      docText += `          END OF SECURE BRIEFING RECORD\n`;
+      docText += `==================================================\n`;
+
+      const blob = new Blob([docText], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `VELORA_INTEL_${chatUser.username || 'session'}_${Date.now()}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      setShowMoreMenu(false);
+    } catch (err) {
+      console.error("Transcript export failed", err);
+    }
+  };
+
+  const handleShredChat = async () => {
+    try {
+      if (!chatId) return;
+      
+      // Remove all messages from database for this chat ID
+      const messagesRef = ref(db, `messages/${chatId}`);
+      await set(messagesRef, null); // Deletes the node securely
+      
+      // Reset unread count
+      const myUnreadRef = ref(db, `users/${currentUserId}/unread_counts/${chatUser.uid}`);
+      await set(myUnreadRef, null);
+      
+      setShowShredderConfirm(false);
+      setShowMoreMenu(false);
+      setMessages([]);
+    } catch (err) {
+      console.error("Shredding protocol failed:", err);
+    }
   };
 
   const handleSendRef = useRef(handleSend);
@@ -584,12 +658,14 @@ const Chat = ({ chatUser, onBack }) => {
           </button>
 
           <button 
+            onClick={() => setShowMoreMenu(!showMoreMenu)}
             title="More Options"
             style={{ 
               width: '42px', height: '42px', borderRadius: '50%', 
               background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-glass)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'var(--text-primary)', transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+              color: 'var(--text-primary)', transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              position: 'relative'
             }}
             onMouseEnter={e => {
               e.currentTarget.style.background = 'var(--accent-gradient)';
@@ -610,6 +686,98 @@ const Chat = ({ chatUser, onBack }) => {
           </button>
         </div>
       </header>
+
+      {/* Floating More Options Dropdown Menu */}
+      {showMoreMenu && (
+        <>
+          {/* Overlay click catcher to dismiss dropdown */}
+          <div onClick={() => setShowMoreMenu(false)} style={{ position: 'absolute', inset: 0, zIndex: 1100, background: 'transparent' }} />
+          
+          <div className="glass-panel animate-scale-in" style={{
+            position: 'absolute', top: '75px', right: '20px', zIndex: 1200,
+            width: '240px', borderRadius: '20px', background: 'rgba(15, 23, 42, 0.95)',
+            border: '1px solid var(--border-glass)', boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+            overflow: 'hidden', padding: '6px'
+          }}>
+            <button 
+              onClick={() => { setShowProfileInfo(true); setShowMoreMenu(false); }}
+              style={{ width: '100%', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', background: 'transparent', border: 'none', color: 'white', fontSize: '0.9rem', fontWeight: 600, borderRadius: '12px', cursor: 'pointer', textAlign: 'left' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-glass-hover)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <Info size={16} color="var(--accent-color)" /> View Contact Dossier
+            </button>
+            
+            <button 
+              onClick={exportSecureIntelligence}
+              style={{ width: '100%', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', background: 'transparent', border: 'none', color: 'white', fontSize: '0.9rem', fontWeight: 600, borderRadius: '12px', cursor: 'pointer', textAlign: 'left' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-glass-hover)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <Paperclip size={16} color="#34d399" /> Export Secure Transcript
+            </button>
+
+            <button 
+              onClick={() => { setIsMuted(!isMuted); setShowMoreMenu(false); }}
+              style={{ width: '100%', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', background: 'transparent', border: 'none', color: 'white', fontSize: '0.9rem', fontWeight: 600, borderRadius: '12px', cursor: 'pointer', textAlign: 'left' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-glass-hover)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <Shield size={16} color="#60a5fa" /> {isMuted ? "Unmute Chat Alerts" : "Mute Chat Alerts"}
+            </button>
+
+            <div style={{ height: '1px', background: 'var(--border-glass)', margin: '6px 0' }} />
+
+            <button 
+              onClick={() => { setShowShredderConfirm(true); setShowMoreMenu(false); }}
+              style={{ width: '100%', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(239, 68, 68, 0.08)', border: 'none', color: '#f87171', fontSize: '0.9rem', fontWeight: 700, borderRadius: '12px', cursor: 'pointer', textAlign: 'left' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)'}
+            >
+              <Trash2 size={16} color="#ef4444" /> Shred Chat Logs
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Secure Shredder Confirmation Modal */}
+      {showShredderConfirm && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div className="glass-panel animate-scale-in" style={{
+            width: '100%', maxWidth: '360px', borderRadius: '32px', padding: '32px 24px',
+            border: '1px solid #ef4444', boxShadow: '0 0 50px rgba(239, 68, 68, 0.2)',
+            textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px'
+          }}>
+            <div style={{
+              width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.1)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444',
+              boxShadow: '0 0 25px rgba(239, 68, 68, 0.1)'
+            }}>
+              <Shield size={32} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: 'white', letterSpacing: '0.05em', marginBottom: '8px' }}>DESTROY INTEL TRANSCRIPT</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.6 }}>
+                You are initiating the secure **SHREDDER PROTOCOL**. This will permanently wipe all decrypted E2EE logs of this transmission from both devices and the database. **This operation is irreversible.**
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
+              <button 
+                onClick={() => setShowShredderConfirm(false)}
+                style={{ flex: 1, padding: '14px', borderRadius: '16px', background: 'var(--bg-glass)', border: '1px solid var(--border-glass)', color: 'white', fontWeight: 700, cursor: 'pointer' }}
+              >
+                ABORT
+              </button>
+              <button 
+                onClick={handleShredChat}
+                style={{ flex: 1, padding: '14px', borderRadius: '16px', background: '#ef4444', color: 'white', fontWeight: 800, border: 'none', cursor: 'pointer', boxShadow: '0 6px 15px rgba(239, 68, 68, 0.3)' }}
+              >
+                SHRED LOGS
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Messages Viewport */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--bg-primary)', position: 'relative' }}>
