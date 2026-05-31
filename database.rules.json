@@ -1,0 +1,66 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "users": {
+      ".read": "auth != null",
+      "$uid": {
+        // Only the owner of the profile can write or modify it
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "stories": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "calls": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "usernames": {
+      // Any authenticated user can check username availability
+      ".read": "auth != null",
+      "$username": {
+        // A user can register/modify a username map only to point to their own UID or clear it if it belonged to them
+        ".write": "auth != null && (!data.exists() || data.val() === auth.uid) && (newData.val() === auth.uid || !newData.exists())"
+      }
+    },
+    "messages": {
+      "$chatId": {
+        // Only the two participants of the chat (whose UIDs make up the sorted chatId like uid1_uid2) can access the room
+        ".read": "auth != null && $chatId.contains(auth.uid)",
+        ".write": "auth != null && $chatId.contains(auth.uid)"
+      }
+    },
+    "presence": {
+      "$chatId": {
+        // Only participants can read other participant presence
+        ".read": "auth != null && $chatId.contains(auth.uid)",
+        "$uid": {
+          // A user can only write their own presence status
+          ".write": "auth != null && auth.uid === $uid && $chatId.contains(auth.uid)"
+        }
+      }
+    },
+    "typing": {
+      "$chatId": {
+        // Only participants can read typing indicators in a chat room
+        ".read": "auth != null && $chatId.contains(auth.uid)",
+        "$uid": {
+          // A user can only write their own typing status
+          ".write": "auth != null && auth.uid === $uid && $chatId.contains(auth.uid)"
+        }
+      }
+    },
+    "note_replies": {
+      "$ownerUid": {
+        // Users can read replies to their own notes
+        ".read": "auth != null && auth.uid === $ownerUid",
+        // Any authenticated user can write a reply
+        ".write": "auth != null"
+      }
+    }
+  }
+}
