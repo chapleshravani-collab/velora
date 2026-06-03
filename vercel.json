@@ -1,3 +1,16 @@
 {
-  "name": "pulxo-chat"
+  "name": "pulxo-chat",
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "pulxo-chat-blush.vercel.app"
+        }
+      ],
+      "destination": "https://pulxo-chat-topaz.vercel.app/$1",
+      "permanent": true
+    }
+  ]
 }
